@@ -1,0 +1,53 @@
+# ───────────────
+# Go build files
+# ───────────────
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go build output
+/build/
+dist/
+*.log
+
+# ───────────────
+# Environment / secrets
+# ───────────────
+.env
+.env.*
+.envrc
+
+# ───────────────
+# IDE / editor settings
+# ───────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ───────────────
+# Dependency cache
+# ───────────────
+vendor/
+go.sum.tmp
+go.work
+go.work.sum
+
+# ───────────────
+# OS / system files
+# ───────────────
+Thumbs.db
+ehthumbs.db
+Icon?
+desktop.ini
+
+# ───────────────
+# Railway or local artifacts
+# ───────────────
+railway.json
+*.local
