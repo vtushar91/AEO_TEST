@@ -48,8 +48,12 @@ func (s *AuthService) SendEmailVerification(ctx context.Context, email, baseURL 
 
 	// send email if configured
 	if s.cfg.Email != "" && s.cfg.EmailKey != "" {
-		// best-effort; ignore email send error for now
-		_ = auth.SendVerificationEmail(s.cfg.Email, s.cfg.EmailKey, email, verifyURL)
+		err := auth.SendVerificationEmail(s.cfg.Email, s.cfg.EmailKey, email, verifyURL)
+		if err != nil {
+			// log the error and return it
+			fmt.Println("SendGrid email error:", err)
+			return "", fmt.Errorf("failed to send verification email: %w", err)
+		}
 	}
 
 	return verifyURL, nil

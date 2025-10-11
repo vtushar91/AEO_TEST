@@ -90,7 +90,7 @@ func (h *Handler) SendVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Email   string `json:"email" validate:"required,email"`
-		BaseURL string `json:"base_url"`
+		BaseURL string `json:"baseURL" validate:"required"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)

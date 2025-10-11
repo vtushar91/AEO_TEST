@@ -3,26 +3,35 @@ package auth
 import (
 	"fmt"
 
-	"gopkg.in/gomail.v2"
+	"github.com/sendgrid/sendgrid-go"
+	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
 
-// SendVerificationEmail sends a plaintext verification email using Gmail SMTP.
-// smtpUser: Gmail email address
-// smtpPass: Gmail App Password
-// to: recipient email
-// verifyURL: link for email verification
-func SendVerificationEmail(smtpUser, smtpPass, to, verifyURL string) error {
-	m := gomail.NewMessage()
-	m.SetHeader("From", smtpUser)
-	m.SetHeader("To", to)
-	m.SetHeader("Subject", "Verify your account")
-	m.SetBody("text/plain", fmt.Sprintf("Please verify your account by clicking this link: %s", verifyURL))
+// SendVerificationEmailSendGrid sends a verification email using SendGrid
+// emailFrom: verified sender email
+// apiKey: SendGrid API key
+// toEmail: recipient email
+// verifyURL: verification link
+func SendVerificationEmail(emailFrom, apiKey, toEmail, verifyURL string) error {
+	from := mail.NewEmail("Your App", emailFrom)
+	subject := "Verify your account"
+	to := mail.NewEmail("", toEmail)
+	plainText := fmt.Sprintf("Click here to verify your account: %s", verifyURL)
+	htmlContent := fmt.Sprintf(`<p>Please verify your account by clicking the link below:</p>
+	<a href="%s">Verify Your Account</a>
+	<p>If the link doesn’t work, copy and paste this URL into your browser:</p>
+	<p>%s</p>`, verifyURL, verifyURL)
 
-	d := gomail.NewDialer("smtp.gmail.com", 587, smtpUser, smtpPass)
-	// TLS is automatically handled by gomail
+	message := mail.NewSingleEmail(from, subject, to, plainText, htmlContent)
+	client := sendgrid.NewSendClient(apiKey)
 
-	if err := d.DialAndSend(m); err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
+	resp, err := client.Send(message)
+	if err != nil {
+		return fmt.Errorf("SendGrid error: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("SendGrid API returned status %d: %s", resp.StatusCode, resp.Body)
 	}
 
 	return nil
