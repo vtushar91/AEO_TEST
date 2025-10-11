@@ -2,28 +2,28 @@ package auth
 
 import (
 	"fmt"
-	"net/smtp"
-	"strings"
+
+	"gopkg.in/gomail.v2"
 )
 
-// sendMail sends a simple plaintext email using SMTP (Gmail)
-// emailKey is the app password
+// SendVerificationEmail sends a plaintext verification email using Gmail SMTP.
+// smtpUser: Gmail email address
+// smtpPass: Gmail App Password
+// to: recipient email
+// verifyURL: link for email verification
 func SendVerificationEmail(smtpUser, smtpPass, to, verifyURL string) error {
-	// Using Gmail SMTP
-	smtpHost := "smtp.gmail.com"
-	smtpPort := "587"
-	from := smtpUser
-	auth := smtp.PlainAuth("", smtpUser, smtpPass, smtpHost)
+	m := gomail.NewMessage()
+	m.SetHeader("From", smtpUser)
+	m.SetHeader("To", to)
+	m.SetHeader("Subject", "Verify your account")
+	m.SetBody("text/plain", fmt.Sprintf("Please verify your account by clicking this link: %s", verifyURL))
 
-	subject := "Verify your email"
-	body := fmt.Sprintf("Please verify your account by clicking the link: %s", verifyURL)
-	msg := strings.Join([]string{
-		"From: " + from,
-		"To: " + to,
-		"Subject: " + subject,
-		"",
-		body,
-	}, "\r\n")
+	d := gomail.NewDialer("smtp.gmail.com", 587, smtpUser, smtpPass)
+	// TLS is automatically handled by gomail
 
-	return smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, []byte(msg))
+	if err := d.DialAndSend(m); err != nil {
+		return fmt.Errorf("failed to send email: %w", err)
+	}
+
+	return nil
 }
