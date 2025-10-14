@@ -102,3 +102,11 @@ func (s *AuthService) DeleteToken(ctx context.Context, token string) error {
 
 	return nil
 }
+func (s *AuthService) SignupOAuthUser(ctx context.Context, email, provider, providerID string) (*repository.User, error) {
+	user, err := s.users.UpsertOAuthUser(ctx, email, provider, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to signup OAuth user: %w", err)
+	}
+
+	return user, nil
+}

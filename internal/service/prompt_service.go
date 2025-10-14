@@ -235,3 +235,9 @@ func (s *PromptService) GetBrandOverview(ctx context.Context, email string) ([]r
 func (s *PromptService) GetPromptMetaByEmail(ctx context.Context, email string, limit, offset int) ([]repository.PromptMeta, error) {
 	return s.repo.GetPromptMetaByEmail(ctx, email, limit, offset)
 }
+func (s *PromptService) GetBrandOverviewByPrompt(ctx context.Context, email string, promptID int) ([]repository.BrandOverview, error) {
+	return s.repo.GetBrandOverviewByPrompt(ctx, email, promptID)
+}
+func (s *PromptService) GetDomainOverviewByPrompt(ctx context.Context, email string, promptID int) ([]repository.DomainAnalysis, error) {
+	return s.repo.GetDomainOverviewByPrompt(ctx, email, promptID)
+}

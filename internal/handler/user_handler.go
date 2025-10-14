@@ -24,10 +24,11 @@ func (h *Handler) AddCompetitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
+	var input []struct {
 		BrandName   string `json:"brand_name"`
 		Domain      string `json:"domain"`
 		TrackedName string `json:"tracked_name,omitempty"`
+		Country     string `json:"country"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -35,33 +36,42 @@ func (h *Handler) AddCompetitor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if input.BrandName == "" || input.Domain == "" {
-		http.Error(w, "brand_name and domain are required", http.StatusBadRequest)
+	if len(input) == 0 {
+		http.Error(w, "at least one competitor must be provided", http.StatusBadRequest)
 		return
 	}
 
-	if input.TrackedName == "" {
-		input.TrackedName = input.BrandName
-	}
+	var competitors []repository.Competitor
+	for _, item := range input {
+		if item.BrandName == "" || item.Domain == "" {
+			http.Error(w, "brand_name and domain are required for all entries", http.StatusBadRequest)
+			return
+		}
 
-	comp := repository.Competitor{
-		DisplayName: input.BrandName,
-		Domain:      input.Domain,
-		TrackedName: input.TrackedName,
+		if item.TrackedName == "" {
+			item.TrackedName = item.BrandName
+		}
+
+		comp := repository.Competitor{
+			DisplayName: item.BrandName,
+			Domain:      item.Domain,
+			TrackedName: item.TrackedName,
+			Country:     item.Country,
+		}
+		competitors = append(competitors, comp)
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	// Only call the Service layer
-	if err := h.usvc.AddCompetitor(ctx, email, []repository.Competitor{comp}); err != nil {
-		http.Error(w, "failed to add competitor: "+err.Error(), http.StatusInternalServerError)
+	if err := h.usvc.AddCompetitor(ctx, email, competitors); err != nil {
+		http.Error(w, "failed to add competitors: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{
-		"message": fmt.Sprintf("competitor '%s' added successfully", input.BrandName),
+		"message": fmt.Sprintf("%d competitor(s) added successfully", len(competitors)),
 	})
 }
 

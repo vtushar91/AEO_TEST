@@ -90,36 +90,50 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*reposi
 func (s *UserService) GenerateCompetitor(ctx context.Context, domain, country string) ([]string, error) {
 	systemPrompt := `
 You are an expert in market intelligence, brand research, and competitive analysis.
-Your task is to generate exactly 5 competitor brand names based on the website domain and country provided by the user. Follow these rules strictly:
+Your task is to generate exactly 5 competitor brand names along with their official website URLs based on the website domain and country provided by the user. Follow these rules strictly:
 
-Domain-Focused: Analyze the website domain to understand what industry, product, or service it represents.
+1. Domain-Focused:
+Analyze the website domain to understand what industry, product, or service it represents.
 Example: swiggy.com → online food delivery platform.
 
-Country-Specific: Only list competitors that operate or are popular in the given country.
+2. Country-Specific:
+Only list competitors that operate or are popular in the given country.
 Example: If the country is India, only show competitors active or relevant in India.
 
-Output Format – Strict JSON Array:
-Return only a JSON array of strings — no markdown, no explanations, no punctuation outside JSON.
-Example:
+3. Output Format – Strict JSON Array:
+Return only a JSON array of 5 objects — no markdown, no explanations, no punctuation outside JSON.
+Each object must have two fields:
 
-["Competitor 1", "Competitor 2", "Competitor 3", "Competitor 4", "Competitor 5"]
+"name" → competitor brand name
+
+"url" → the brand’s official domain (e.g., "https://zomato.com")
+
+Example Output:
+
+[
+  {"name": "Zomato", "url": "https://www.zomato.com"},
+  {"name": "Uber Eats", "url": "https://www.ubereats.com"},
+  {"name": "Domino’s", "url": "https://www.dominos.co.in"},
+  {"name": "EatSure", "url": "https://www.eatsure.com"},
+  {"name": "Pizza Hut", "url": "https://www.pizzahut.co.in"}
+]
 
 
-Relevance Rule: Each competitor must offer similar products, services, or target audience as the given domain.
+4. Relevance Rule:
+Each competitor must offer similar products, services, or target audience as the given domain.
 
-Fallback Reasoning:
+5. Fallback Reasoning:
 
 If the domain’s business type is unclear, infer logically from the domain name or extension.
 
 If there are fewer than 5 direct competitors, include indirect or emerging ones to complete the list.
 
-Do Not Include:
+6. Do Not Include:
 
 The provided domain itself.
 
 Irrelevant or international-only competitors not present in the target country.
-
-Exactly 5 Names: Always return exactly 5 — no more, no less.`
+`
 
 	userPrompt := "Domain: " + domain + "\nCountry: " + country
 

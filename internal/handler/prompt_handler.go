@@ -403,3 +403,81 @@ func (h *Handler) GetPromptMeta(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to encode response: "+err.Error(), http.StatusInternalServerError)
 	}
 }
+func (h *Handler) GetBrandOverviewByPrompt(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "use GET", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get email from context
+	email, ok := pkg.GetEmailFromContext(r.Context())
+	if !ok || email == "" {
+		http.Error(w, "unauthorized: missing email", http.StatusUnauthorized)
+		return
+	}
+
+	// Get prompt_id from query param
+	promptIDStr := r.URL.Query().Get("prompt_id")
+	if promptIDStr == "" {
+		http.Error(w, "missing prompt_id", http.StatusBadRequest)
+		return
+	}
+
+	promptID, err := strconv.Atoi(promptIDStr)
+	if err != nil {
+		http.Error(w, "invalid prompt_id", http.StatusBadRequest)
+		return
+	}
+
+	// Call service
+	overview, err := h.p.GetBrandOverviewByPrompt(r.Context(), email, promptID)
+	if err != nil {
+		http.Error(w, "failed to get brand overview: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return JSON
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(overview); err != nil {
+		http.Error(w, "failed to encode response: "+err.Error(), http.StatusInternalServerError)
+	}
+}
+func (h *Handler) GetDomainOverviewByPrompt(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "use GET", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get email from context
+	email, ok := pkg.GetEmailFromContext(r.Context())
+	if !ok || email == "" {
+		http.Error(w, "unauthorized: missing email", http.StatusUnauthorized)
+		return
+	}
+
+	// Get prompt_id from query param
+	promptIDStr := r.URL.Query().Get("prompt_id")
+	if promptIDStr == "" {
+		http.Error(w, "missing prompt_id", http.StatusBadRequest)
+		return
+	}
+
+	promptID, err := strconv.Atoi(promptIDStr)
+	if err != nil {
+		http.Error(w, "invalid prompt_id", http.StatusBadRequest)
+		return
+	}
+
+	// Call service
+	overview, err := h.p.GetDomainOverviewByPrompt(r.Context(), email, promptID)
+	if err != nil {
+		http.Error(w, "failed to get domain overview: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return JSON
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(overview); err != nil {
+		http.Error(w, "failed to encode response: "+err.Error(), http.StatusInternalServerError)
+	}
+}

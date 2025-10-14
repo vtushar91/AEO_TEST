@@ -10,18 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-//	type PromptAnalysis struct {
-//		ID         int            `json:"id"`
-//		UserEmail  string         `json:"user_email"`
-//		Prompt     string         `json:"prompt"`
-//		Visibility float64        `json:"visibility"`
-//		Sentiment  string         `json:"sentiment"`
-//		Position   int            `json:"position"`
-//		Mentions   map[string]int `json:"mentions"`
-//		Volume     int            `json:"volume"`
-//		Location   string         `json:"location"`
-//		Added      time.Time      `json:"added"`
-//	}
 type MinimalAnalysis struct {
 	Prompt     string           `json:"prompt"`
 	Response   string           `json:"response"`
@@ -428,4 +416,84 @@ func (r *PromptRepo) GetPromptMetaByEmail(ctx context.Context, email string, lim
 	}
 
 	return metas, nil
+}
+func (r *PromptRepo) GetBrandOverviewByPrompt(ctx context.Context, email string, promptID int) ([]BrandOverview, error) {
+	query := `
+		SELECT 
+			ba.brand_name,
+			ba.visibility AS avg_visibility,
+			ba.position AS avg_position,
+			ba.sentiment AS avg_sentiment
+		FROM brand_analysis AS ba
+		JOIN prompt_response_entry AS pr ON ba.prompt_id = pr.id
+		WHERE pr.user_email = $1 AND pr.id = $2
+		ORDER BY ba.visibility DESC
+	`
+
+	rows, err := r.db.Query(ctx, query, email, promptID)
+	if err != nil {
+		return nil, fmt.Errorf("query brand overview by prompt: %w", err)
+	}
+	defer rows.Close()
+
+	var overviews []BrandOverview
+	for rows.Next() {
+		var o BrandOverview
+		if err := rows.Scan(
+			&o.BrandName,
+			&o.AvgVisibility,
+			&o.AvgPosition,
+			&o.AvgSentiment,
+		); err != nil {
+			return nil, fmt.Errorf("scan brand overview by prompt: %w", err)
+		}
+		overviews = append(overviews, o)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate brand overview by prompt: %w", err)
+	}
+
+	return overviews, nil
+}
+func (r *PromptRepo) GetDomainOverviewByPrompt(ctx context.Context, email string, promptID int) ([]DomainAnalysis, error) {
+	query := `
+		SELECT 
+			da.domain,
+			da.used,
+			da.avg_citations,
+			da.type,
+			da.added
+		FROM domain_analysis AS da
+		JOIN prompt_response_entry AS pr ON da.prompt_id = pr.id
+		WHERE pr.user_email = $1 AND da.prompt_id = $2
+		ORDER BY da.avg_citations DESC
+	`
+
+	rows, err := r.db.Query(ctx, query, email, promptID)
+	if err != nil {
+		return nil, fmt.Errorf("query domain overview by prompt: %w", err)
+	}
+	defer rows.Close()
+
+	var domainOverview []DomainAnalysis
+	for rows.Next() {
+		var o DomainAnalysis
+		if err := rows.Scan(
+			&o.Domain,
+			&o.Used,
+			&o.AvgCitations,
+			&o.Type,
+			&o.Added,
+		); err != nil {
+			return nil, fmt.Errorf("scan domain overview by prompt: %w", err)
+		}
+		domainOverview = append(domainOverview, o)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate domain overview by prompt: %w", err)
+	}
+
+	return domainOverview, nil
 }

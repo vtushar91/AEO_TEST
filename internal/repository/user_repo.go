@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // User model stored in DB
@@ -16,16 +17,23 @@ type User struct {
 	Email      string             `bson:"email" json:"email"`
 	IsVerified bool               `bson:"is_verified" json:"-"`
 	BrandName  string             `bson:"brand_name,omitempty" json:"brand_name,omitempty"`
-	Domain     string             `bson:"domain,omitempty" json:"domain"`
+	Domain     string             `bson:"domain,omitempty" json:"domain,omitempty"`
 	Country    string             `bson:"country,omitempty" json:"country,omitempty"`
 	Competitor []Competitor       `bson:"competitor,omitempty" json:"competitor,omitempty"`
-	CreatedAt  time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt  time.Time          `bson:"updated_at" json:"updated_at"`
+
+	// OAuth fields
+	Provider    string    `bson:"provider,omitempty" json:"provider,omitempty"`       // "google", "github", etc.
+	ProviderID  string    `bson:"provider_id,omitempty" json:"provider_id,omitempty"` // unique ID from OAuth provider
+	CreatedAt   time.Time `bson:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `bson:"updated_at" json:"updated_at"`
+	LastLoginAt time.Time `bson:"last_login_at,omitempty" json:"last_login_at,omitempty"`
 }
+
 type Competitor struct {
 	DisplayName string `bson:"display_name,omitempty" json:"display_name"`
 	TrackedName string `bson:"tracked_name,omitempty" json:"tracked_name"`
 	Domain      string `bson:"domain,omitempty" json:"domain"`
+	Country     string `bson:"country,omitempty" json:"country"`
 }
 type UserRepo struct {
 	col *mongo.Collection
@@ -117,4 +125,38 @@ func (r *UserRepo) UpdateProfile(ctx context.Context, email string, profile *Use
 	}
 	_, err := r.col.UpdateOne(ctx, filter, update)
 	return err
+}
+func (r *UserRepo) UpsertOAuthUser(ctx context.Context, email, provider, providerID string) (*User, error) {
+	now := time.Now().UTC()
+
+	// Filter: either by provider+providerID OR by email
+	filter := bson.M{
+		"$or": []bson.M{
+			{"provider": provider, "provider_id": providerID},
+			{"email": email},
+		},
+	}
+
+	update := bson.M{
+		"$setOnInsert": bson.M{
+			"email":       email,
+			"provider":    provider,
+			"provider_id": providerID,
+			"is_verified": true, // OAuth users are verified by default
+			"created_at":  now,
+		},
+		"$set": bson.M{
+			"last_login_at": now,
+		},
+	}
+
+	opts := options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)
+
+	var user User
+	err := r.col.FindOneAndUpdate(ctx, filter, update, opts).Decode(&user)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
 }
