@@ -481,3 +481,139 @@ func (h *Handler) GetDomainOverviewByPrompt(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "failed to encode response: "+err.Error(), http.StatusInternalServerError)
 	}
 }
+func (h *Handler) AddPrompt(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "use POST", http.StatusMethodNotAllowed)
+		return
+	}
+
+	email, ok := pkg.GetEmailFromContext(r.Context())
+	if !ok || email == "" {
+		http.Error(w, "unauthorized: missing email", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse single prompt request
+	var req struct {
+		Prompt  string   `json:"prompt" validate:"required"`
+		Country string   `json:"country" validate:"required"`
+		Tags    []string `json:"tags,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := h.validate.Struct(&req); err != nil {
+		http.Error(w, "validation error: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+
+	// Get user info
+	userData, err := h.usvc.GetUserByEmail(ctx, email)
+	if err != nil {
+		http.Error(w, "failed to fetch user data: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if userData == nil || userData.BrandName == "" {
+		http.Error(w, "brand not configured for this user", http.StatusBadRequest)
+		return
+	}
+
+	// Send prompt to OpenAI
+	respText, err := h.p.SendToOpenAI(ctx, email, req.Prompt, req.Country)
+	if err != nil {
+		http.Error(w, "OpenAI API error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Store prompt response
+	entry := repository.PromptResponseEntry{
+		UserEmail: email,
+		Prompt:    req.Prompt,
+		Response:  respText,
+		Country:   req.Country,
+		Added:     time.Now().UTC(),
+	}
+
+	promptIDs, err := h.p.StorePromptResponses(ctx, []repository.PromptResponseEntry{entry})
+	if err != nil {
+		http.Error(w, "failed to store prompt response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	promptID := promptIDs[0]
+
+	// Generate brand aliases & competitor aliases
+	brandAliases := pkg.GenerateAliases(userData.BrandName)
+	competitorMap := make(map[string][]string)
+	for _, c := range userData.Competitor {
+		competitorMap[c.TrackedName] = pkg.GenerateAliases(c.TrackedName)
+	}
+
+	// Analyze response
+	analysisResults := pkg.AnalyzeResponses(
+		[]pkg.PromptResponse{{Prompt: req.Prompt, Response: respText}},
+		req.Country,
+		userData.BrandName,
+		brandAliases,
+		competitorMap,
+	)
+
+	// Store analyses
+	for _, a := range analysisResults {
+		// Prompt metadata
+		promptMeta := repository.PromptMeta{
+			PromptID:  promptID,
+			UserEmail: email,
+			Prompt:    a.Prompt,
+			Mentions:  a.Mentions,
+			Volume:    a.Volume,
+			Tags:      a.Tags,
+			Location:  a.Location,
+			Added:     time.Now().UTC(),
+		}
+		if err := h.p.StorePromptMeta(ctx, []repository.PromptMeta{promptMeta}); err != nil {
+			http.Error(w, "failed to store prompt metadata: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Brand analysis
+		var brandEntries []repository.BrandAnalysis
+		for _, b := range a.Brands {
+			brandEntries = append(brandEntries, repository.BrandAnalysis{
+				PromptID:   promptID,
+				UserEmail:  email,
+				BrandName:  b.BrandName,
+				Visibility: b.Visibility,
+				Sentiment:  b.Sentiment,
+				Position:   b.Position,
+				Added:      time.Now().UTC(),
+			})
+		}
+		if err := h.p.StoreBrandAnalyses(ctx, brandEntries); err != nil {
+			http.Error(w, "failed to store brand analyses: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Domain analysis
+		var domainEntries []repository.DomainAnalysis
+		for _, d := range a.Domains {
+			domainEntries = append(domainEntries, repository.DomainAnalysis{
+				PromptID:     promptID,
+				Domain:       d.Domain,
+				Used:         d.Used,
+				AvgCitations: d.AvgCitations,
+				Type:         d.Type,
+			})
+		}
+		if err := h.p.StoreDomainAnalyses(ctx, domainEntries); err != nil {
+			http.Error(w, "failed to store domain analyses: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, `{"message":"prompt processed and analyzed successfully"}`)
+}

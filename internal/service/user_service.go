@@ -87,7 +87,13 @@ func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*reposi
 	}
 	return user, nil
 }
-func (s *UserService) GenerateCompetitor(ctx context.Context, domain, country string) ([]string, error) {
+
+type Competitor struct {
+	Name   string `json:"name" bson:"competitor_name"`
+	Domain string `json:"url" bson:"competitor_domain"`
+}
+
+func (s *UserService) GenerateCompetitor(ctx context.Context, domain, country string) ([]Competitor, error) {
 	systemPrompt := `
 You are an expert in market intelligence, brand research, and competitive analysis.
 Your task is to generate exactly 5 competitor brand names along with their official website URLs based on the website domain and country provided by the user. Follow these rules strictly:
@@ -143,17 +149,19 @@ Irrelevant or international-only competitors not present in the target country.
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: userPrompt},
 		},
-		MaxTokens: 200,
+		MaxTokens: 300,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("openai error: %w", err)
 	}
 
 	content := resp.Choices[0].Message.Content
-	var Competitor []string
-	if err := json.Unmarshal([]byte(content), &Competitor); err != nil {
+
+	// Unmarshal into a slice
+	var competitors []Competitor
+	if err := json.Unmarshal([]byte(content), &competitors); err != nil {
 		return nil, fmt.Errorf("invalid json from model: %w", err)
 	}
 
-	return Competitor, nil
+	return competitors, nil
 }

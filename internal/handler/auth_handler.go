@@ -71,6 +71,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		middleware.JWTAuth(h.cfg.AccessSecret, http.HandlerFunc(h.GetBrandOverviewByPrompt))) //get brand per prompt
 	mux.Handle("/analyse/domain/prompt/get",
 		middleware.JWTAuth(h.cfg.AccessSecret, http.HandlerFunc(h.GetDomainOverviewByPrompt))) //get domain per prompt
+	mux.Handle("/prompt/add",
+		middleware.JWTAuth(h.cfg.AccessSecret, http.HandlerFunc(h.AddPrompt))) //Add prompt
 	//TODO:Add Prompt Route
 	//Overview
 	mux.Handle("/analyse/brand/get",
