@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"auth-microservice/internal/auth"
@@ -73,7 +74,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		middleware.JWTAuth(h.cfg.AccessSecret, http.HandlerFunc(h.GetDomainOverviewByPrompt))) //get domain per prompt
 	mux.Handle("/prompt/add",
 		middleware.JWTAuth(h.cfg.AccessSecret, http.HandlerFunc(h.AddPrompt))) //Add prompt
-	//TODO:Add Prompt Route
 	//Overview
 	mux.Handle("/analyse/brand/get",
 		middleware.JWTAuth(h.cfg.AccessSecret, http.HandlerFunc(h.GetBrandOverview))) // get brands
@@ -268,32 +268,46 @@ func (h *Handler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user exists or create new
 	ctx := r.Context()
+
+	// Check if user exists or create new
 	user, err := h.svc.GetUserByEmail(ctx, gUser.Email)
 	if err != nil {
 		http.Error(w, "error fetching user", http.StatusInternalServerError)
 		return
 	}
-	if user == nil {
+
+	var action string
+	switch {
+	case user == nil:
+		// New OAuth user → signup
 		user, err = h.svc.SignupOAuthUser(ctx, gUser.Email, "google", gUser.ID)
 		if err != nil {
 			http.Error(w, "failed to signup oauth user", http.StatusInternalServerError)
 			return
 		}
-	}
+		action = "oauth_signup"
+		fmt.Println(user.BrandName, "not found")
+	case user.BrandName == "":
+		// Existing user but not onboarded yet
+		action = "oauth_signup"
 
+	default:
+		// Fully onboarded user
+		action = "oauth_login"
+	}
+	fmt.Println(action)
 	// Generate AEORANK JWT
 	accessToken, err := auth.GenerateAccessToken(h.cfg.AccessSecret, user.Email, user.ID.Hex(), 24*time.Hour)
 	if err != nil {
 		http.Error(w, "token gen failed", http.StatusInternalServerError)
 		return
 	}
-
-	json.NewEncoder(w).Encode(map[string]string{
-		"email":        user.Email,
-		"access_token": accessToken,
-		"action":       "oauth_login",
-		"message":      "Welcome via Google OAuth!",
-	})
+	// Final response
+	http.Redirect(w, r, fmt.Sprintf("%s/oauth/callback?token=%s&email=%s&action=%s",
+		h.cfg.FrontendURL,
+		url.QueryEscape(accessToken),
+		url.QueryEscape(user.Email),
+		url.QueryEscape(action),
+	), http.StatusTemporaryRedirect)
 }

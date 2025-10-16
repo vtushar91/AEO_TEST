@@ -32,6 +32,7 @@ type Config struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURL  string
+	FrontendURL        string
 
 	// Other optional keys
 	OpenApiKey string
@@ -75,6 +76,7 @@ func Load() (*Config, error) {
 		GoogleClientID:     getOptional("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: getOptional("GOOGLE_CLIENT_SECRET"),
 		GoogleRedirectURL:  getOptional("GOOGLE_REDIRECT_URL"),
+		FrontendURL:        getOptional("FrontendURL"),
 	}
 
 	if len(missing) > 0 {
